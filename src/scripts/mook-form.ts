@@ -1,5 +1,6 @@
 import { getArmorUpdates, getCurrentArmorSelections } from "./armor.js";
 import { applyMookChanges } from "./apply-mook.js";
+import { getBulletDodgingChoices, type BulletDodging } from "./bullet-dodging.js";
 import {
   getSkillTarget,
   getCurrentCombatNumber,
@@ -67,7 +68,7 @@ function getSkillAdjustmentOptions(name: string): string {
           <input type="radio" name="${name}" value="set-custom">
           <span>${game.i18n!.localize("PNEUMA_MOOK_MAKER.Form.SetSkillTarget")}</span>
           <input type="text" name="${name}Target" inputmode="numeric" pattern="(?:[0-9]|1[0-8])"
-            maxlength="2" aria-label="${game.i18n!.localize("PNEUMA_MOOK_MAKER.Form.SkillTarget")}" disabled>
+            maxlength="2" aria-label="${game.i18n!.localize("PNEUMA_MOOK_MAKER.Form.SkillTarget")}">
         </label>
       </div>
     </div>`;
@@ -212,6 +213,8 @@ function getMookMakerForm(token: Token, availableRoles: AvailableRole[]): string
       </header>
       <fieldset class="pneuma-mook-maker-section pneuma-mook-maker-section-mook">
         <legend>${game.i18n!.localize("PNEUMA_MOOK_MAKER.Form.SectionMook")}</legend>
+        <div class="pneuma-mook-maker-mook-layout">
+        <div class="pneuma-mook-maker-mook-fields">
         <div class="pneuma-mook-maker-identity-row">
           <label class="pneuma-mook-maker-identity-name" for="pneuma-mook-maker-name">
             <span>${game.i18n!.localize("PNEUMA_MOOK_MAKER.Form.Name")}</span>
@@ -231,6 +234,18 @@ function getMookMakerForm(token: Token, availableRoles: AvailableRole[]): string
           </label>
         </div>
         ${tokenControls}
+        </div>
+        <div class="pneuma-mook-maker-secondary-actions">
+          <button class="pneuma-mook-maker-purge" type="button" data-action="purge-gear">
+            <i class="fas fa-trash"></i>
+            ${game.i18n!.localize("PNEUMA_MOOK_MAKER.Form.PurgeGear")}
+          </button>
+          <button class="pneuma-mook-maker-promote" type="button" data-action="promote">
+            <i class="fas fa-user-graduate"></i>
+            ${game.i18n!.localize("PNEUMA_MOOK_MAKER.Form.Promote")}
+          </button>
+        </div>
+        </div>
       </fieldset>
       <fieldset class="pneuma-mook-maker-section pneuma-mook-maker-section-stats">
         <legend>${game.i18n!.localize("PNEUMA_MOOK_MAKER.Form.SectionStats")}</legend>
@@ -242,16 +257,22 @@ function getMookMakerForm(token: Token, availableRoles: AvailableRole[]): string
               ${combatChoices}
             </div>
             <div class="pneuma-mook-maker-non-combat-pane">
-              <label class="pneuma-mook-maker-non-combat-toggle">
-                <input type="checkbox" name="setNonCombatSkills">
-                <span>${game.i18n!.localize("PNEUMA_MOOK_MAKER.Form.SetNonCombatSkills")}</span>
+              <label class="pneuma-mook-maker-bullet-dodging">
+                <span>${game.i18n!.localize("PNEUMA_MOOK_MAKER.Form.CanDodgeBullets")}</span>
+                <select name="bulletDodging">
+                  ${getBulletDodgingChoices().map(choice => `<option value="${choice}">${game.i18n!.localize({
+                    unchanged: "PNEUMA_MOOK_MAKER.Form.Unchanged",
+                    reflex: "PNEUMA_MOOK_MAKER.Form.DodgeReflex",
+                    coprocessor: "PNEUMA_MOOK_MAKER.Form.DodgeCoprocessor",
+                  }[choice])}</option>`).join("")}
+                </select>
               </label>
-              <div class="pneuma-mook-maker-non-combat-options" aria-disabled="true">
-                <fieldset disabled>
+              <div class="pneuma-mook-maker-non-combat-options">
+                <fieldset>
                   <legend>${game.i18n!.localize("PNEUMA_MOOK_MAKER.Form.SecondarySkills")}</legend>
                   ${getSkillAdjustmentOptions("secondarySkills")}
                 </fieldset>
-                <fieldset disabled>
+                <fieldset>
                   <legend>${game.i18n!.localize("PNEUMA_MOOK_MAKER.Form.TertiarySkills")}</legend>
                   ${getSkillAdjustmentOptions("tertiarySkills")}
                 </fieldset>
@@ -300,17 +321,6 @@ function getMookMakerForm(token: Token, availableRoles: AvailableRole[]): string
           ${game.i18n!.localize("PNEUMA_MOOK_MAKER.Form.Cancel")}
         </button>
       </div>
-      <hr class="pneuma-mook-maker-action-divider">
-      <div class="pneuma-mook-maker-secondary-actions">
-        <button class="pneuma-mook-maker-purge" type="button" data-action="purge-gear">
-          <i class="fas fa-trash"></i>
-          ${game.i18n!.localize("PNEUMA_MOOK_MAKER.Form.PurgeGear")}
-        </button>
-        <button class="pneuma-mook-maker-promote" type="button" data-action="promote">
-          <i class="fas fa-user-graduate"></i>
-          ${game.i18n!.localize("PNEUMA_MOOK_MAKER.Form.Promote")}
-        </button>
-      </div>
     </form>`;
 }
 
@@ -356,23 +366,6 @@ export async function showMookMakerMenu(token: Token): Promise<void> {
         const input = event.currentTarget as HTMLInputElement;
         input.value = input.value.replace(/\D/g, "").slice(0, 1);
       });
-      const nonCombatOptions = html.find(".pneuma-mook-maker-non-combat-options");
-      const refreshSkillAdjustment = (): void => {
-        const enabled = html
-          .find<HTMLInputElement>('input[name="setNonCombatSkills"]')
-          .prop("checked");
-        nonCombatOptions.attr("aria-disabled", String(!enabled));
-        nonCombatOptions.find("fieldset").prop("disabled", !enabled);
-
-        for (const name of ["secondarySkills", "tertiarySkills"]) {
-          html
-            .find<HTMLInputElement>(`input[name="${name}Target"]`)
-            .prop("disabled", !enabled);
-        }
-      };
-      html
-        .find('input[name="setNonCombatSkills"], input[name="secondarySkills"], input[name="tertiarySkills"]')
-        .on("change", refreshSkillAdjustment);
       html
         .find<HTMLInputElement>('input[name="secondarySkillsTarget"], input[name="tertiarySkillsTarget"]')
         .on("focus", (event) => {
@@ -392,7 +385,6 @@ export async function showMookMakerMenu(token: Token): Promise<void> {
             .find<HTMLInputElement>(`input[name="${adjustmentName}"][value="set-custom"]`)
             .prop("checked", true);
         });
-      refreshSkillAdjustment();
 
       html.find('[data-action="apply"]').on("click", async () => {
         const applyButton = html.find<HTMLButtonElement>('[data-action="apply"]');
@@ -530,38 +522,34 @@ export async function showMookMakerMenu(token: Token): Promise<void> {
         if (combatNumber !== null && Number.isFinite(combatNumber)) {
           skillTargets[1] = combatNumber;
         }
-        const setNonCombatSkills = html
-          .find<HTMLInputElement>('input[name="setNonCombatSkills"]')
-          .prop("checked");
-        if (setNonCombatSkills) {
-          for (const [category, name] of [
-            [2, "secondarySkills"],
-            [3, "tertiarySkills"],
-          ] as const) {
-            const selection = String(
-              html.find<HTMLInputElement>(`input[name="${name}"]:checked`).val() ??
-                "unchanged",
-            );
-            const customTarget = String(
-              html.find<HTMLInputElement>(`input[name="${name}Target"]`).val() ?? "",
-            );
-            const target = getSkillTarget(selection, customTarget);
-            if (Number.isNaN(target)) {
-              ui.notifications?.warn(
-                game.i18n!.localize(
-                  "PNEUMA_MOOK_MAKER.Form.SkillAdjustmentRequired",
-                ),
-              );
-              return;
-            }
-            if (target !== null) skillTargets[category] = target;
+        for (const [category, name] of [
+          [2, "secondarySkills"],
+          [3, "tertiarySkills"],
+        ] as const) {
+          const selection = String(
+            html.find<HTMLInputElement>(`input[name="${name}"]:checked`).val() ?? "unchanged",
+          );
+          const customTarget = String(
+            html.find<HTMLInputElement>(`input[name="${name}Target"]`).val() ?? "",
+          );
+          const target = getSkillTarget(selection, customTarget);
+          if (Number.isNaN(target)) {
+            ui.notifications?.warn(game.i18n!.localize("PNEUMA_MOOK_MAKER.Form.SkillAdjustmentRequired"));
+            return;
           }
+          if (target !== null) skillTargets[category] = target;
         }
 
+        const bulletDodging = String(html.find<HTMLSelectElement>('select[name="bulletDodging"]').val() ?? "unchanged") as BulletDodging;
+        if (!getBulletDodgingChoices().includes(bulletDodging)) {
+          ui.notifications?.warn(game.i18n!.localize("PNEUMA_MOOK_MAKER.Form.DodgeInvalid"));
+          return;
+        }
         const skillUpdates = getSkillUpdates(
           actor,
           skillTargets,
           hitPointStats.will,
+          bulletDodging === "reflex" ? 8 : undefined,
         );
 
         applyButton.prop("disabled", true);
@@ -582,6 +570,7 @@ export async function showMookMakerMenu(token: Token): Promise<void> {
             armorUpdates: armorResult.updates,
             weaponUpdates,
             skillUpdates,
+            bulletDodging,
           });
           if (nameChanged) {
             ui.notifications?.info(
@@ -592,7 +581,7 @@ export async function showMookMakerMenu(token: Token): Promise<void> {
           }
         } catch (error) {
           ui.notifications?.error(
-            game.i18n!.localize("PNEUMA_MOOK_MAKER.Form.ApplyFailed"),
+            error instanceof Error ? error.message : game.i18n!.localize("PNEUMA_MOOK_MAKER.Form.ApplyFailed"),
           );
           applyButton.prop("disabled", false);
           return;

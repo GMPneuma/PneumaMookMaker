@@ -41,6 +41,7 @@ export function getSkillUpdates(
   actor: Actor,
   targets: SkillTargets,
   willOverride: number,
+  reflexOverride?: number,
 ): object[] {
   const classifications = getSkillClassifications();
   return Array.from(actor.items).flatMap((item) => {
@@ -53,6 +54,8 @@ export function getSkillUpdates(
     const statValue =
       stat === "will"
         ? willOverride
+        : stat === "ref" && reflexOverride !== undefined
+          ? reflexOverride
         : Number(foundry.utils.getProperty(actor, `system.stats.${stat}.value`));
     if (!Number.isFinite(statValue)) return [];
     return [{ _id: item.id, "system.level": Math.max(0, target - statValue) }];

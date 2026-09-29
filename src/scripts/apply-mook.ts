@@ -1,5 +1,6 @@
 import { MODULE_ID } from "./constants.js";
 import type { HitPointStats } from "./stats.js";
+import { getBulletDodgingChoices, installCoprocessor, prepareCoprocessor, type BulletDodging } from "./bullet-dodging.js";
 
 type RollbackAction = () => Promise<unknown>;
 
@@ -19,6 +20,7 @@ export interface ApplyMookChanges {
   armorUpdates: object[];
   weaponUpdates: object[];
   skillUpdates: object[];
+  bulletDodging?: BulletDodging;
 }
 
 function getEmbeddedRollbackUpdates(actor: Actor, updates: object[]): object[] {
@@ -61,6 +63,15 @@ export async function applyMookChanges(changes: ApplyMookChanges): Promise<boole
     const updatableDelta = delta as unknown as {
       update(data: object): Promise<unknown>;
     };
+    const bulletDodging = changes.bulletDodging ?? "unchanged";
+    if (!getBulletDodgingChoices().includes(bulletDodging)) throw new Error("Invalid bullet-dodging option.");
+    const coprocessor = bulletDodging === "coprocessor" ? await prepareCoprocessor(actor) : undefined;
+    if (bulletDodging === "reflex") {
+      const originalRef = foundry.utils.getProperty(actor, "system.stats.ref.value");
+      rollbackActions.push(() => updatableDelta.update({ "system.stats.ref.value": originalRef }));
+      await updatableDelta.update({ "system.stats.ref.value": 8 });
+    }
+    if (coprocessor) await installCoprocessor(token, coprocessor, rollbackActions);
     const originalActiveRole = foundry.utils.getProperty(
       actor,
       "system.roleInfo.activeRole",

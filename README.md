@@ -1,5 +1,7 @@
 # Pneuma Mook Maker
 
+Planned work and editable statuses: [backlog.md](backlog.md).
+
 A TypeScript module for Foundry Virtual Tabletop v12 and Cyberpunk RED Core.
 
 ## Development
@@ -44,8 +46,21 @@ entry point is `src/scripts/main.ts`.
 - Apply can rename the synthetic Actor and Token, set BODY/WILL-derived HP,
   MOVE, Combat Number skill levels, armor, and Role rank.
 - Two weapons from the mook's inventory can be equipped on Apply.
+- Stats → **Can dodge bullets** always offers **Unchanged**, **REF 8**, and
+  **Reflex Co-Processor**. There is no Combat Tools integration or setting lookup.
+  REF is set before skills are adjusted to the
+  Combat Number. The Co-Processor option reuses existing cyberware or imports the
+  native system item, adding a Neural Link when needed. A full Neural Link or
+  missing system item stops Apply with an error. This GM configuration does not
+  roll Humanity loss. Existing qualifiers are never removed by **Unchanged**.
+- Secondary and Tertiary Skills are always available and default to
+  **Unchanged**; the former Set non-combat skills checkbox is removed.
 - Purge Unused Gear removes unused inventory while preserving carried/equipped
   items and complete installed-item trees. Optional ammunition purging can
   retain every ammo type used by carried or equipped weapons.
 - Promote creates a linked Actor in `MookMaker/Promoted`, links the current
   Token to it, and marks the Token as promoted from MookMaker.
+- Purge and Promote are stacked in their shaded box on the right of the Mook
+  section, beside compact role, level and token controls.
+
+[Implementation and verification notes](docs/bullet-dodging.md).
